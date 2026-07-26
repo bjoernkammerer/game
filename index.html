@@ -1,185 +1,34 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<title>Hornspiel</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="Ein Eichhörnchen-Jump-and-Run durch zwölf Wälder.">
-<meta name="theme-color" content="#16281f">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><ellipse cx='16' cy='19' rx='9' ry='11' fill='%23c2823f'/><ellipse cx='16' cy='11' rx='11' ry='6' fill='%23785030'/><rect x='15' y='2' width='2' height='6' rx='1' fill='%23785030'/></svg>">
-<style>
-  :root {
-    --bark: #16281f;
-    --bark-deep: #0e1a14;
-    --moss: #3b7857;
-    --nut: #c2823f;
-    --nut-dim: #785030;
-    --paper: #eef3ec;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: var(--bark-deep);
-    font-family: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
-    color: var(--paper);
-    -webkit-tap-highlight-color: transparent;
-  }
-  #glcanvas {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    outline: none;
-    touch-action: none;
-  }
-  #boot {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    gap: 26px;
-    background:
-      radial-gradient(120% 90% at 50% 8%, #22392c 0%, var(--bark) 45%, var(--bark-deep) 100%);
-    transition: opacity .45s ease;
-  }
-  #boot.gone { opacity: 0; pointer-events: none; }
-  .acorn { width: 76px; height: 92px; }
-  .acorn .fill { transition: transform .3s ease; transform-origin: 50% 100%; }
-  .wordmark {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: .34em;
-    text-transform: uppercase;
-    color: var(--nut);
-    margin: 0;
-  }
-  .status {
-    font-size: 13.5px;
-    letter-spacing: .02em;
-    color: #9fb3a6;
-    margin: 0;
-    min-height: 1.2em;
-    text-align: center;
-  }
-  .keys {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: 320px;
-  }
-  .keys span {
-    border: 1px solid #3a5245;
-    border-radius: 7px;
-    padding: 5px 10px;
-    font-size: 11.5px;
-    letter-spacing: .04em;
-    color: #b7c8bc;
-  }
-  #focus-hint {
-    position: fixed;
-    left: 50%;
-    bottom: 26px;
-    transform: translateX(-50%);
-    padding: 9px 16px;
-    border-radius: 999px;
-    background: rgba(14, 26, 20, .82);
-    border: 1px solid #3a5245;
-    font-size: 13px;
-    color: var(--paper);
-    display: none;
-    cursor: pointer;
-  }
-  #focus-hint.show { display: block; }
-  @media (prefers-reduced-motion: reduce) {
-    .acorn .fill, #boot { transition: none; }
-  }
-</style>
+    <meta charset="utf-8">
+    <title>Hornspiel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1a2420;
+        }
+        canvas {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+    </style>
 </head>
 <body>
-<canvas id="glcanvas" tabindex="1"></canvas>
-
-<div id="boot">
-  <svg class="acorn" viewBox="0 0 76 92" aria-hidden="true">
-    <defs>
-      <clipPath id="shell">
-        <path d="M38 30c17 0 26 13 26 29 0 18-12 30-26 30S12 77 12 59c0-16 9-29 26-29z"/>
-      </clipPath>
-    </defs>
-    <rect x="35" y="0" width="6" height="16" rx="3" fill="#785030"/>
-    <path d="M38 30c17 0 26 13 26 29 0 18-12 30-26 30S12 77 12 59c0-16 9-29 26-29z" fill="#2b3f33"/>
-    <g clip-path="url(#shell)">
-      <rect class="fill" x="0" y="0" width="76" height="92" fill="#c2823f" style="transform: scaleY(0)"/>
-    </g>
-    <ellipse cx="38" cy="26" rx="30" ry="14" fill="#785030"/>
-    <ellipse cx="30" cy="22" rx="9" ry="4" fill="#8d6039"/>
-  </svg>
-  <p class="wordmark">Hornspiel</p>
-  <p class="status" id="status">Wald wird geladen …</p>
-  <div class="keys">
-    <span>← → Laufen</span><span>↑ Klettern</span><span>Leertaste Springen</span><span>F Werfen</span>
-  </div>
-</div>
-
-<div id="focus-hint">Klick ins Bild, um zu steuern</div>
-
-<script src="mq_js_bundle.js"></script>
-<script>
-(function () {
-  const boot = document.getElementById("boot");
-  const status = document.getElementById("status");
-  const fill = document.querySelector(".acorn .fill");
-  const hint = document.getElementById("focus-hint");
-  const canvas = document.getElementById("glcanvas");
-
-  let progress = 0;
-  const tick = setInterval(function () {
-    progress = Math.min(0.9, progress + 0.06);
-    fill.style.transform = "scaleY(" + progress + ")";
-  }, 120);
-
-  function ready() {
-    clearInterval(tick);
-    fill.style.transform = "scaleY(1)";
-    status.textContent = "Los geht's";
-    setTimeout(function () {
-      boot.classList.add("gone");
-      canvas.focus();
-    }, 260);
-  }
-
-  function fail(msg) {
-    clearInterval(tick);
-    status.innerHTML = msg;
-  }
-
-  miniquad_add_plugin({
-    name: "boot_screen",
-    version: 1,
-    register_plugin: function () {},
-    on_init: ready
-  });
-
-  if (!window.WebGLRenderingContext) {
-    fail("Dein Browser unterstützt kein WebGL.<br>Probier Chrome, Firefox oder Safari in aktueller Version.");
-    return;
-  }
-
-  window.addEventListener("error", function (e) {
-    fail("Laden fehlgeschlagen: " + (e.message || "unbekannter Fehler"));
-  });
-
-  document.addEventListener("click", function () { canvas.focus(); });
-  hint.addEventListener("click", function () { canvas.focus(); });
-  canvas.addEventListener("focus", function () { hint.classList.remove("show"); });
-  canvas.addEventListener("blur", function () {
-    if (boot.classList.contains("gone")) hint.classList.add("show");
-  });
-
-  load("game.wasm");
-})();
-</script>
+    <canvas id="glcanvas" tabindex="1"></canvas>
+    <script src="mq_js_bundle.js"></script>
+    <script>load("hornspiel.wasm");</script>
 </body>
 </html>
